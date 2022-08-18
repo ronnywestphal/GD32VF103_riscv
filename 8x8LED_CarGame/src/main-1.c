@@ -1,7 +1,5 @@
 #include "gd32vf103.h"
 #include "drivers-1.h"
-#include "dac-1.h"
-#include "pwm-1.h"
 #include "adc.h"
 
 /* Returns which column the players car is on the 8x8 LED Matrix */
