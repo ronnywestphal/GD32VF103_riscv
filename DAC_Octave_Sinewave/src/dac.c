@@ -14,5 +14,4 @@ void DAC0powerUpInit(){
 
 void DAC0set(int value){
        dac_data_set(DAC0, DAC_ALIGN_12B_R, value);     // Output = Vref * DAC_DO / 0xFFF
-
 }

@@ -1,8 +1,9 @@
 #include "gd32vf103.h"
 #include "drivers.h"
 #include "dac.h"
-#include "pwm.h"
 
+
+/* Changes the values in Counter Auto Reload of Timer 5 */
 void switchFreq(int aLook[],int aKey){
     switch(aLook[aKey]){
         case 0:  t5freq(227.2); break;
@@ -25,31 +26,40 @@ void switchFreq(int aLook[],int aKey){
     }
 }
 
-
 void powerUp(void){
     t5omsi();                               // Initialize timer5 1kHz
-    colinit();                              // Initialize column toolbox
-    l88init();                              // Initialize 8*8 led toolbox
-    keyinit();
+    keyinit();                              // Initialize keypad
     DAC0powerUpInit();                      // Initialize DAC0/PA4 toolbox
 }
 
-int main(void){
+int main(void)
+{
     powerUp();
-    int lookUpTbl[16]={1,4,7,14,2,5,8,0,3,6,9,15,10,11,12,13},
-        sine[10]={0x7FF,0xAFF,0xDFF,0xFFF,0xDFF,0xAFF,0x5FF,0x2FF,0x00,0x3FF},
-        key=-1,i=0;
 
-    while (1) {                                           
-        if (t5expq()) {                     // Manage periodic tasks        
-            l88row(colset());               // ...8*8LED and Keyboard
-            DAC0set(sine[i++]);
-            if (i==10)
-                i=0; 
-        }                         
-        if ((key=keyscan())>=0) {           // ...Any key pressed?
+    int lookUpTbl[16]={1,4,7,14,2,5,8,0,3,6,9,15,10,11,12,13},                  // translates the key values to what is displayed on the keypad
+        sine[10]={0x7FF,0xAFF,0xDFF,0xFFF,0xDFF,0xAFF,0x5FF,0x2FF,0x00,0x3FF},  // the shape of the wave... (only positive values)
+        key=-1,
+        i=0;
+
+    while (1) {     
+
+        /* Manage Asynchronous Events */
+
+        if ((key=keyscan())>=0)         // Key pressed?
+        {           
             switchFreq(lookUpTbl,key);
             key=-1;
+        }        
+
+        /* Manage periodic tasks */
+
+        if (t5expq())                   // Timer 5 controls the frequency... 
+        {                               // ..."draws" one point in the wave each time timer 5 resets
+            DAC0set(sine[i++]);         // Convert to analog
+            if (i==10)
+                i=0; 
         }
+
+
     }
 }
