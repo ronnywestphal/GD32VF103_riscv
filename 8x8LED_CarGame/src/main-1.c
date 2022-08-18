@@ -3,26 +3,10 @@
 #include "dac-1.h"
 #include "pwm-1.h"
 #include "adc.h"
-#include "eclicw.h"
 
 
-void lp(void){
-    static int x=0, xp=0, y=0, yp=0;
-    static int g=0b0010001100000000; //0.1367287359(<<16)
-    static int p=0b1011100111111110; //0.7265425280(<<16)
 
-    // Be aware of possible spirous int updating mtimecmp...
-    // LSW = -1; MSW = update; LSW = update, in this case safe.
-    *( volatile uint64_t * )( TIMER_CTRL_ADDR + TIMER_MTIMECMP )+=675;
 
-    // Calcylate next output value...
-    xp=x; yp=y;
-    x = ((adc_regular_data_read(ADC0)-2048))*g;
-    y = (x+xp)+(int)(((int64_t)yp*(int64_t)p)>>16);
-    DAC0set((y>>16)+2048);              // ...and present it to hw-driver.
-
-    adc_software_trigger_enable(ADC0, ADC_REGULAR_CHANNEL);
-}
 
 int carPos(int adcrVal){
         if (adcrVal>0x0CFF)
@@ -83,15 +67,15 @@ int main(void){
     ADC3powerUpInit(1);                     // Initialize ADC0, Ch3 & Ch16
 
     while (1) {
-                                            // Manage Async events
+                                            // Manage Asynchronous events
         if (adc_flag_get(ADC0,ADC_FLAG_EOC)==SET) { // ...ADC done?
-            adcr = adc_regular_data_read(ADC0); // ......get data
+            adcr = adc_regular_data_read(ADC0);     // ......get data
             adcr=carPos(adcr);               
-            adc_flag_clear(ADC0, ADC_FLAG_EOC); // ......clear IF
+            adc_flag_clear(ADC0, ADC_FLAG_EOC);     // ......clear IF
         }
-        if (t5expq()) {                     // Manage periodic tasks
-            l88row(colset());               // ...8*8LED and Keyboard
-            ms++;                           // ...One second heart beat
+        if (t5expq()) {                             // Manage periodic tasks
+            l88row(colset());                       // ...8*8LED and Keyboard
+            ms++;                                   // ...One millisecond
             if (tmp){
                 carPass=adcr+tmp;             
                 l88mem(1,carPass);
