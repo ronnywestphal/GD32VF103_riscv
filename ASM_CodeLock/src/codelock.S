@@ -105,7 +105,8 @@ buf1:   .byte   0x00,0x01,0x02,0x03
 
 .section .text
 .global main
-main:   li a0, PBEN+PAEN    // Prepare to turn on GPIOB...
+main:   
+        li a0, PBEN+PAEN    // Prepare to turn on GPIOB...
         call rcu2en         // ...do the set-up!
 
         li a0, GPIOB        // Prepare to init GPIOB...
@@ -127,69 +128,89 @@ main:   li a0, PBEN+PAEN    // Prepare to turn on GPIOB...
         bne a3,a4, 1b       // ...continue, if not done!   
 
 
-        li t3,4
-        li t5,4
-        la t0,buf1              // Patterns that show on led
-        la t1,buf               // Lock Patterns
+restart:
+        li t3,4                 // counts down for every attempted pattern
+        li t5,4                 // counts down for every correct pattern entered
+        la t0,buf1              // Leds indicate which pattern to enter (1-3)
+        la t1,buf               // Lock Patterns 
 
-start:                          // Main loop              
-        lw t2,0(t0)             // Light shows which pattern
+start:                                       
+        lw t2,0(t0)             // load which pattern (1-3) to t2
         li a0,GPIOB             
         mv a1,t2 
         li a2,0x07
-        call gpiobo
+        call gpiobo             
 
         li a0,GPIOA
+1:
         call gpiois             // get user input value 
         srli a1,a1,5            // shift it down 5 steps (A8-A5 to A3-A0)
         andi a1,a1,0x08         // mask out A8 value
         li t4,0x0FFF            // Delay counter
-        bnez a1,stp             
+        bnez a1,A8on            // wait for user to confirm the pattern by turning on A8
         
-        j start                 // Repeat until switch A8 is turned on 
+        j 1b                    // Repeat until switch A8 is turned on 
 
-stp:    addi t4,t4,-1           // Delay to avoid registering wrong values on A8 
-        bnez t4,stp             
+A8on:   
+        addi t4,t4,-1           // Delay to avoid registering wrong values on A8 
+        bnez t4,A8on             
         li t4,0x0FFF            // reset delay counter 
-1:                                 
+2:                                 
         call gpiois             // get user input value 
         srli a1,a1,5            // shift it down 5 steps (A8-A5 to A3-A0)
         andi a2,a1,0x08         // mask out A8 value
         andi a1,a1,0x07         // mask out pattern...
         mv t2,a1                // store pattern in t2
-        beqz a2,stp2            
+        beqz a2,A8off            
         
-        j 1b                    // ...repeat until switch A8 is turned off 
+        j 2b                    // ...repeat until switch A8 is turned off 
 
 
-stp2:   addi t4,t4,-1           // delay loop2
-        bnez t4,stp2      
+A8off:  
+        addi t4,t4,-1           // delay loop2
+        bnez t4,A8off      
 
-        lb t4,0(t1)             // t4=value of current address       
+        lb t4,0(t1)             // t4=value of buf address (lock pattern)      
 
-        addi t1,t1,1            // Lock pattern address +1 (next lock pattern)
-        addi t0,t0,1            // Light pattern address +1 
-        addi t3,t3,-1           // Pattern counter -1
+        addi t1,t1,1            // Lock pattern address += 1 (next lock pattern)
+        addi t0,t0,1            // Light pattern address += 1 (1-3)
+        addi t3,t3,-1           // Pattern counter -= 1
 
-        sub t2,t2,t4            // Compare with input pattern
-        bnez t2,2f              // Jump over to directly to next pattern if incorrect
-        addi t5,t5,-1           // -1 if correct pattern
+        sub t2,t2,t4            // Compare pattern in buf with input pattern
+        bnez t2,2f              // branch forward to label 2 if pattern is incorrect...
+        addi t5,t5,-1           // t5 -= 1 if correct pattern
 
-2:      bnez t3,start           // Start of main loop
+2:      
+        bnez t3,start           // branch to start if all patterns are not completed 
 
-1:      bnez t5,2f              // t5 = 0 if all patterns are correct. Else Jump forward.
+1:      
+        bnez t5,2f              // branch forward to 2: if any pattern was incorrect.
         li a0,GPIOB
-        li a1,0x07              // All lights on
+        li a1,0x07              // All lights on (lock is unlocked)
         li a2,0x07
         call gpiobo
         j 1b 
 
-2:      li a0, GPIOB
-        li a1,0x00              // All lights off
+2:      
+        li a0, GPIOB
+        li a1,0x00              // All lights off (lock remains locked)
         li a2,0x07
         call gpiobo
-        j 2b      
-       
+
+// turn on then off A8 to start over 
+3:      
+        call gpiois             // get user input value 
+        srli a1,a1,5            // shift it down 5 steps (A8-A5 to A3-A0)
+        andi a1,a1,0x08         // mask out A8 value
+        bnez a1,4f              // turn on A8
+        j 3b  
+4:      
+        call gpiois             // get user input value 
+        srli a1,a1,5            // shift it down 5 steps (A8-A5 to A3-A0)
+        andi a1,a1,0x08         // mask out A8 value    
+        beqz a2,restart         // turn off A8 to start over
+        j 4b
+        
 .end
 
 
